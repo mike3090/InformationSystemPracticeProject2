@@ -1,0 +1,2 @@
+# InformationSystemPracticeProject2
+単語を思える
