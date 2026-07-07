@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vrchat-ai-voice"
+version = "0.1.0"
+description = "Local VRChat AI voice bridge using OpenAI, Whisper, and a virtual audio cable."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+  "openai==1.59.7",
+  "python-dotenv==1.0.1",
+  "httpx==0.28.1",
+  "requests==2.32.4",
+  "numpy==2.2.1",
+  "soundcard==0.4.3",
+  "faster-whisper==1.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
