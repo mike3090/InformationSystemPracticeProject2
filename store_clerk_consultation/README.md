@@ -47,7 +47,7 @@ Assets/ConvenienceStoreDialog/Runtime/VoiceChoiceReceiver.cs
 Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
 ```
 
-The external service accepts recognized text, matches it to choice index `0`, `1`, or `2`, and exposes the latest result for VRChat polling:
+The external service serves a browser microphone page. In Chrome or Edge, it can listen for Japanese speech, submit final transcripts, match them to choice index `0`, `1`, or `2`, and expose the latest result for VRChat polling:
 
 ```text
 http://127.0.0.1:8765/session/default/latest
@@ -65,7 +65,9 @@ Then open:
 http://127.0.0.1:8765/
 ```
 
-Submit sample text such as `唐揚げ弁当を探しています`, `コーヒーはありますか`, or `ATMはどこですか`. `VoiceChoiceReceiver` polls the result and triggers the same dialogue choice that a click would trigger.
+Click `Start Japanese voice recognition`, allow microphone access, and speak phrases such as `唐揚げ弁当を探しています`, `コーヒーはありますか`, or `ATMはどこですか`.
+
+Manual transcript submission remains available on the same page as a fallback. `VoiceChoiceReceiver` polls the result and triggers the same dialogue choice that a click would trigger.
 
 ## Requirements
 

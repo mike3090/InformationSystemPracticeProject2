@@ -221,18 +221,115 @@ class Handler(BaseHTTPRequestHandler):
 <!doctype html>
 <meta charset="utf-8">
 <title>Voice Choice Simulator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 32px auto; line-height: 1.5; }
+  button { margin: 4px 8px 4px 0; padding: 8px 12px; }
+  input { padding: 8px; }
+  code, pre { background: #f3f3f3; padding: 2px 4px; }
+  #status { margin-top: 12px; font-weight: 600; }
+  #transcript { min-height: 32px; padding: 8px; border: 1px solid #ddd; }
+</style>
 <h1>Voice Choice Simulator</h1>
-<p>Submit recognized Japanese text. VRChat polls <code>/session/default/latest</code>.</p>
+<p>Use microphone recognition or submit text manually. VRChat polls <code>/session/default/latest</code>.</p>
+
+<section>
+  <h2>Microphone ASR</h2>
+  <button id="startVoice" type="button">Start Japanese voice recognition</button>
+  <button id="stopVoice" type="button">Stop</button>
+  <div id="status">Idle</div>
+  <p>Latest transcript:</p>
+  <div id="transcript"></div>
+  <p>Latest payload:</p>
+  <pre id="payload"></pre>
+</section>
+
+<section>
+<h2>Manual transcript</h2>
 <form action="/session/default/simulate" method="get">
   <input name="text" style="width: 420px" value="唐揚げ弁当を探しています">
   <button type="submit">Submit transcript</button>
 </form>
+</section>
+
+<section>
+<h2>Samples</h2>
 <ul>
   <li><a href="/session/default/simulate?text=唐揚げ弁当を探しています">唐揚げ弁当を探しています</a></li>
   <li><a href="/session/default/simulate?text=コーヒーはありますか">コーヒーはありますか</a></li>
   <li><a href="/session/default/simulate?text=ATMはどこですか">ATMはどこですか</a></li>
   <li><a href="/session/default/latest">Latest payload</a></li>
 </ul>
+</section>
+
+<script>
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const startButton = document.getElementById("startVoice");
+const stopButton = document.getElementById("stopVoice");
+const statusNode = document.getElementById("status");
+const transcriptNode = document.getElementById("transcript");
+const payloadNode = document.getElementById("payload");
+let recognition = null;
+
+async function submitTranscript(text) {
+  const response = await fetch("/session/default/transcript", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  const payload = await response.text();
+  payloadNode.textContent = payload;
+  return payload;
+}
+
+async function refreshLatest() {
+  const response = await fetch("/session/default/latest");
+  payloadNode.textContent = await response.text();
+}
+
+if (!SpeechRecognition) {
+  statusNode.textContent = "This browser does not expose Web Speech API. Try Chrome or Edge.";
+  startButton.disabled = true;
+} else {
+  recognition = new SpeechRecognition();
+  recognition.lang = "ja-JP";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    statusNode.textContent = "Listening in Japanese...";
+  };
+
+  recognition.onerror = (event) => {
+    statusNode.textContent = "Recognition error: " + event.error;
+  };
+
+  recognition.onend = () => {
+    statusNode.textContent = "Stopped";
+  };
+
+  recognition.onresult = async (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const text = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        transcriptNode.textContent = text;
+        statusNode.textContent = "Submitted: " + text;
+        await submitTranscript(text);
+      } else {
+        interim += text;
+      }
+    }
+    if (interim) {
+      transcriptNode.textContent = interim;
+    }
+  };
+
+  startButton.onclick = () => recognition.start();
+  stopButton.onclick = () => recognition.stop();
+}
+
+refreshLatest();
+</script>
 """
         encoded = body.encode("utf-8")
         self.send_response(200)

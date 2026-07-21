@@ -21,7 +21,8 @@ VRChat/UdonSharp convenience-store dialogue prototype.
   - Converts service results into the same `SelectChoice0/1/2` calls used by clickable buttons.
 - `ExternalVoiceService/voice_choice_server.py`
   - Minimal local HTTP service for the MVP.
-  - Simulates ASR by accepting recognized text and matching it to choice index `0`, `1`, or `2`.
+  - Serves a browser microphone page using Web Speech API for Japanese ASR.
+  - Also accepts manual recognized text and matches it to choice index `0`, `1`, or `2`.
 - `Fonts/`
   - Noto Sans CJK JP TMP font assets used for Japanese text display.
 
@@ -59,19 +60,29 @@ If `py` is unavailable, try:
 python Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
 ```
 
-Open the simulator page:
+Open the voice page in Chrome or Edge:
 
 ```text
 http://127.0.0.1:8765/
 ```
 
-Submit text such as:
+Click:
+
+```text
+Start Japanese voice recognition
+```
+
+Then speak one of the current reply phrases, for example:
 
 ```text
 唐揚げ弁当を探しています
 コーヒーはありますか
 ATMはどこですか
 ```
+
+The page submits final Japanese transcripts to the local service automatically.
+
+Manual text submission is still available on the same page as a fallback.
 
 The service returns:
 
