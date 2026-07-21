@@ -46,6 +46,11 @@ class RmsSegmenter:
                     emitted.append(segment)
         return emitted
 
+    def reset(self) -> None:
+        self._buffer.clear()
+        self._silence_seen = 0
+        self._active = False
+
     def _flush(self) -> np.ndarray:
         if not self._buffer:
             return np.empty(0, dtype=np.float32)

@@ -15,7 +15,7 @@ class TextSink:
 
 class ConsoleSink(TextSink):
     def send(self, text: str) -> None:
-        print(f"AI: {text}")
+        print(f"[LLM] AI: {text}", flush=True)
 
 
 @dataclass

@@ -60,6 +60,20 @@ def select_speaker(name_fragment: str | None):
     return matches[0]
 
 
+def select_microphone(name_fragment: str | None):
+    sc = _soundcard()
+    if not name_fragment:
+        return sc.default_microphone()
+
+    fragment = name_fragment.casefold()
+    microphones = sc.all_microphones(include_loopback=False)
+    matches = [microphone for microphone in microphones if fragment in microphone.name.casefold()]
+    if not matches:
+        available = "\n".join(f"- {microphone.name}" for microphone in microphones)
+        raise RuntimeError(f"Microphone matching '{name_fragment}' was not found.\nAvailable microphones:\n{available}")
+    return matches[0]
+
+
 def print_devices() -> None:
     for device in list_devices():
         default_marker = " default" if device.is_default else ""

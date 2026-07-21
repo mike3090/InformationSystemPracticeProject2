@@ -37,7 +37,7 @@ def main() -> int:
     env["HUGGINGFACE_HUB_CACHE"] = str(root / ".cache" / "huggingface" / "hub")
     env["VRCHAT_AI_TRANSCRIPT_PATH"] = str(runtime_dir / "transcript.log")
 
-    children: list[subprocess.Popen] = []
+    children: list[tuple[str, subprocess.Popen]] = []
 
     try:
         if not args.no_facing:
@@ -80,23 +80,34 @@ def main() -> int:
             print("[run_all] transcript:", runtime_dir / "transcript.log", flush=True)
             print("[run_all] crops:", runtime_dir / "crops", flush=True)
             print("[run_all] starting proximity targeting:", " ".join(targeting_cmd), flush=True)
-            children.append(subprocess.Popen(targeting_cmd, cwd=root, env=env))
+            children.append(("proximity targeting", subprocess.Popen(targeting_cmd, cwd=root, env=env)))
             time.sleep(2)
 
         chat_cmd = [str(python), "-u", "-m", "vrchat_ai_voice", "all"]
         print("[run_all] starting AI chat bridge:", " ".join(chat_cmd), flush=True)
         chat = subprocess.Popen(chat_cmd, cwd=root, env=env)
-        children.append(chat)
-        return chat.wait()
+        children.append(("AI chat bridge", chat))
+        reported_exits: set[int] = set()
+        while True:
+            chat_exit_code = chat.poll()
+            for name, child in children:
+                exit_code = child.poll()
+                if exit_code is not None and child.pid not in reported_exits:
+                    level = "ERROR" if exit_code else "run_all"
+                    print(f"[{level}] service exited: {name} pid={child.pid} exit_code={exit_code}", flush=True)
+                    reported_exits.add(child.pid)
+            if chat_exit_code is not None:
+                return chat_exit_code
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\n[run_all] stopping...", flush=True)
         return 130
     finally:
-        for child in children:
+        for _name, child in children:
             if child.poll() is None:
                 child.terminate()
         deadline = time.time() + 5
-        for child in children:
+        for _name, child in children:
             while child.poll() is None and time.time() < deadline:
                 time.sleep(0.1)
             if child.poll() is None:

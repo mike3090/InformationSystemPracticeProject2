@@ -1,87 +1,248 @@
-# VRChat AI Text Bridge
+# VRChat AI Voice Bridge
 
-本仓库提供一个本机原型：监听 VRChat 的输出音频，将其他玩家说话转成文本，交给 `gpt-4o-mini` 生成回复，并把回复显示为文字。语音合成和推送到 VRChat 麦克风的部分先暂停，后续再接。
+本目录是一个本机 VRChat AI 店员原型：监听用户语音，转成文字，交给 LLM 生成便利店 NPC 回复，再把回复显示为文字并可选地用 TTS 通过 VRChat 麦克风播给远端用户。
 
-## 当前实现
+## 当前进度
 
-- OpenAI 服务端：`gpt-4o-mini` 聊天接口，API key 留给你在 `.env` 中填写。
-- 本机音频监听：使用 Windows WASAPI 回环录制指定播放设备。Windows 上更稳定的做法是按“设备”监听；如果需要只听 VRChat，不听其它软件声音，请把 VRChat 输出路由到单独的虚拟播放设备。
-- 语音转文本：使用 `faster-whisper` 本地模型，首次运行会下载模型。
-- 文字输出：默认显示在终端；也可以通过 VRChat OSC 发到 Chatbox。
+- STT：使用 `faster-whisper`，当前配置为 `base`，并尝试使用 `cuda/float16`。
+- LLM：使用 `gpt-4o-mini`，本地 FastAPI 服务封装 OpenAI 请求。
+- LLM 输出：服务端强制要求 JSON，包含 `display_text` 和 `spoken_text`。
+- 文字显示：`display_text` 输出到 PowerShell、`runtime/transcript.log`，并可通过 OSC Chatbox 发到 VRChat。
+- TTS：使用 OpenAI `tts-1` + `alloy`，当前回退为完整 `wav` 播放，避免流式 PCM 的卡顿/电流声。
+- TTS 播放：`spoken_text` 只包含日语，英文括号翻译不会进入 TTS。
+- VRChat 麦克风控制：当前推荐 Push-to-talk；TTS 播放前发 `/input/Voice true`，播放后发 `/input/Voice false`。
+- MIXLINE：推荐用 `MIXLINE Record` 给程序做 STT 输入，用 `MIXLINE Stream` 作为 VRChat 麦克风输出。
+- 自动面向目标：`run_all.ps1 -SaveDebug` 会启动 OCR/自动转向；只测对话时推荐 `-NoFacing`。
 
-## 安装
+## 当前推荐连接
 
-1. 安装 Python 依赖和下载 STT 模型
+MIXLINE 分工：
 
-   ```powershell
-   .\scripts\setup.ps1
-   ```
+```text
+MIXLINE Record = 程序的耳朵，给 STT 听
+MIXLINE Stream = VRChat 的麦克风，给远端用户听
+```
 
-2. 填写配置
+推荐连线：
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+```text
+VRChat 远端用户声音 -> MIXLINE Record
+Python / TTS 输出源 -> MIXLINE Stream
+```
 
-   然后编辑 `.env`，填入：
+VRChat 设置：
 
-   ```text
-   OPENAI_API_KEY=你的 key
-   ```
+```text
+Microphone input = 麦克风 (MIXLINE Stream)
+Microphone Behaviour = Push-to-talk / 按住说话
+OSC = enabled
+```
 
-   多行系统提示词放在 `prompts/system.md`。`.env` 中默认使用：
+程序 STT 当前听：
 
-   ```text
-   VRCHAT_AI_SYSTEM_PROMPT_FILE=prompts/system.md
-   ```
+```text
+VRCHAT_AI_CAPTURE_MODE=microphone
+VRCHAT_AI_CAPTURE_MICROPHONE=MIXLINE Record
+```
 
-   如果你想临时用单行提示词，可以清空 `VRCHAT_AI_SYSTEM_PROMPT_FILE`，再设置 `VRCHAT_AI_SYSTEM_PROMPT=...`。
+不要连接：
 
-3. 可选：打开 VRChat OSC
+```text
+Python / TTS -> MIXLINE Record
+MIXLINE Stream -> MIXLINE Record
+VRChat -> MIXLINE Stream
+```
 
-   如果只想在终端看文字，不需要做这步。
+否则 AI 可能听到自己刚说的话，或把 VRChat 输出重新送回 VRChat 麦克风。
 
-   如果想让回复出现在 VRChat Chatbox：
+## 启动方式
 
-   - 在 VRChat Action Menu 中开启 OSC。
-   - 在 `.env` 中设置 `VRCHAT_AI_TEXT_OUTPUT=console,osc`。
-   - OSC 默认发送到 `127.0.0.1:9000`。
+进入目录：
 
-## 运行
+```powershell
+cd C:\Users\ShengxinLi\Desktop\Codes\InformationSystemPracticeProject2\InformationSystemPracticeProject2\interaction
+```
 
-先查看设备名：
+只测试 STT + LLM + TTS，不启动 OCR/自动转向：
+
+```powershell
+.\run_all.ps1 -NoFacing
+```
+
+启动完整脚本，包括截图/OCR/自动面向目标：
+
+```powershell
+.\run_all.ps1 -SaveDebug
+```
+
+如果自动转向方向反了：
+
+```powershell
+.\run_all.ps1 -SaveDebug -InvertLook
+```
+
+停止脚本：
+
+```text
+Ctrl+C
+```
+
+如果有后台残留，只停止当前目录相关 Python 进程：
+
+```powershell
+$root = (Resolve-Path .).Path
+Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -like 'python*.exe' -and $_.CommandLine -like "*$root*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+## 运行时看哪里
+
+当前 PowerShell 会实时显示：
+
+```text
+[STT] Other player (ja, p=0.98): ...
+[LLM] AI: ...
+[TTS] synthesizing: ...
+[TTS] VRChat mic hold: press
+[TTS] playing on: ...
+[TTS] playback finished
+[TTS] VRChat mic hold: release
+```
+
+转写和回复日志：
+
+```powershell
+Get-Content .\runtime\transcript.log -Tail 40 -Wait
+```
+
+完整脚本输出：
+
+```powershell
+Get-Content .\runtime\run_all.out.log -Tail 80 -Wait
+```
+
+错误日志：
+
+```powershell
+Get-Content .\runtime\run_all.err.log -Tail 80 -Wait
+```
+
+## 关键配置
+
+当前 `.env` 的核心配置应类似：
+
+```text
+OPENAI_MODEL=gpt-4o-mini
+
+VRCHAT_AI_CAPTURE_MODE=microphone
+VRCHAT_AI_CAPTURE_MICROPHONE=MIXLINE Record
+
+VRCHAT_AI_TEXT_OUTPUT=console,file,osc
+
+VRCHAT_AI_TRANSCRIBE_MODEL=base
+VRCHAT_AI_TRANSCRIBE_DEVICE=cuda
+VRCHAT_AI_TRANSCRIBE_COMPUTE_TYPE=float16
+VRCHAT_AI_TRANSCRIBE_ALLOWED_LANGUAGES=ja,zh,en
+
+VRCHAT_AI_CHUNK_SECONDS=0.12
+VRCHAT_AI_MIN_SEGMENT_SECONDS=0.45
+VRCHAT_AI_SILENCE_SECONDS=0.45
+
+VRCHAT_AI_TTS_ENABLED=true
+VRCHAT_AI_TTS_MODEL=tts-1
+VRCHAT_AI_TTS_VOICE=alloy
+VRCHAT_AI_TTS_RESPONSE_FORMAT=wav
+VRCHAT_AI_TTS_STREAMING=false
+VRCHAT_AI_TTS_VRCHAT_MIC_CONTROL=hold
+VRCHAT_AI_POST_TTS_COOLDOWN_SECONDS=0.4
+```
+
+`VRCHAT_AI_TTS_OUTPUT_SPEAKER` 当前可以留空，让程序使用 Windows 默认输出；如果要固定到某个设备，可以填设备名片段，例如：
+
+```text
+VRCHAT_AI_TTS_OUTPUT_SPEAKER=MIXLINE
+VRCHAT_AI_TTS_OUTPUT_SPEAKER=Steam Streaming Microphone
+VRCHAT_AI_TTS_OUTPUT_SPEAKER=NVIDIA
+```
+
+列出当前 Windows 音频设备：
 
 ```powershell
 .\.venv\Scripts\python.exe -m vrchat_ai_voice devices
 ```
 
-在 `.env` 中按设备名片段填写：
+## LLM 输出格式
+
+服务端会要求模型返回 JSON：
+
+```json
+{
+  "display_text": "こちらにタッチしてください。（Please tap your card here.）",
+  "spoken_text": "こちらにタッチしてください。"
+}
+```
+
+程序使用方式：
 
 ```text
-VRCHAT_AI_CAPTURE_SPEAKER=
-VRCHAT_AI_TEXT_OUTPUT=console
+display_text -> PowerShell / transcript.log / OSC Chatbox
+spoken_text  -> TTS
 ```
 
-启动 OpenAI 服务端：
+这样 TTS 不再依赖括号切割或标题切割，英文翻译不会被读出来。
+
+## OSC 边界
+
+OSC 可以用于：
+
+```text
+Chatbox 文字
+VRChat 输入控制，例如 /input/Voice
+Avatar 参数
+```
+
+OSC 不能用于：
+
+```text
+把 TTS 音频直接作为 VRChat 麦克风音频流输入
+```
+
+要让远端玩家听到 TTS，必须走 Windows 音频设备或 MIXLINE 虚拟麦克风：
+
+```text
+Python TTS -> MIXLINE Stream -> VRChat microphone
+```
+
+## 安装
+
+首次安装依赖：
 
 ```powershell
-.\.venv\Scripts\python.exe -m vrchat_ai_voice server
+.\scripts\setup.ps1
 ```
 
-另开一个终端启动语音桥接：
+如果没有 `.env`：
 
 ```powershell
-.\.venv\Scripts\python.exe -m vrchat_ai_voice run
+Copy-Item .env.example .env
 ```
 
-## 后续改进点
+然后填写：
 
-- 多人同时说话时，在 `RmsSegmenter` 前替换为更强的 VAD 和说话人分离。
-- 如果要避免监听到游戏音效，可以将 VRChat 输出路由到专用播放设备，再只监听该设备。
-- 后续再接 TTS 和麦克风推送；到那一步再考虑 VB-CABLE、Voicemeeter、已有 Stereo Mix 或其它音频路由方案。
+```text
+OPENAI_API_KEY=你的 key
+```
 
-## 组件选择
+系统提示词在：
 
-- STT：`faster-whisper`，默认模型为 `base`，可在 `.env` 的 `VRCHAT_AI_TRANSCRIBE_MODEL` 中改成 `small`、`medium` 或本地模型路径。
-- LLM：OpenAI `gpt-4o-mini`。
-- VRChat 文字显示：OSC Chatbox。
+```text
+prompts/system.md
+```
+
+## 已知问题和调试建议
+
+- TTS 流式 PCM 曾出现卡顿/电流声，所以当前默认使用 `wav` 非流式播放。
+- OCR/自动转向会使用 EasyOCR，目前 torch 是 CPU-only 时会刷 `pin_memory` warning，并可能拖慢整体体验；只测对话时用 `-NoFacing`。
+- STT 当前尝试 `cuda/float16`，如果初始化失败，代码会自动回退到 `cpu/int8`。
+- 如果 TTS 能在 PowerShell 显示播放但 VRChat 没听到，优先检查 MIXLINE 里 `Python/TTS` 是否连到 `MIXLINE Stream`，以及 VRChat 麦克风是否选择 `麦克风 (MIXLINE Stream)`。
