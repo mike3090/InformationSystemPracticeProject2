@@ -16,6 +16,12 @@ VRChat/UdonSharp convenience-store dialogue prototype.
 - `Editor/AddProximityDialogToScene.cs`
   - Installs or refreshes `NPC_DialogTrigger_Demo` in the active scene.
   - Builds the NPC marker, dialogue canvas, text fields, and three interactable choice buttons.
+- `Runtime/VoiceChoiceReceiver.cs`
+  - Polls an external voice-choice service.
+  - Converts service results into the same `SelectChoice0/1/2` calls used by clickable buttons.
+- `ExternalVoiceService/voice_choice_server.py`
+  - Minimal local HTTP service for the MVP.
+  - Simulates ASR by accepting recognized text and matching it to choice index `0`, `1`, or `2`.
 - `Fonts/`
   - Noto Sans CJK JP TMP font assets used for Japanese text display.
 
@@ -30,6 +36,58 @@ In Unity:
 5. Aim at a reply button and click/interact to progress the dialogue.
 
 The installer is idempotent: running it again updates the existing object instead of creating a second one.
+
+## Voice Choice MVP
+
+The generated NPC also includes `VoiceChoiceReceiver`.
+
+Default polling URL:
+
+```text
+http://127.0.0.1:8765/session/default/latest
+```
+
+Start the local test service:
+
+```powershell
+py -3 Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
+```
+
+If `py` is unavailable, try:
+
+```powershell
+python Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
+```
+
+Open the simulator page:
+
+```text
+http://127.0.0.1:8765/
+```
+
+Submit text such as:
+
+```text
+唐揚げ弁当を探しています
+コーヒーはありますか
+ATMはどこですか
+```
+
+The service returns:
+
+```text
+version|choiceIndex|transcript|confidence
+```
+
+Example:
+
+```text
+1721540000000|0|唐揚げ弁当を探しています|0.95
+```
+
+`VoiceChoiceReceiver` polls this result. When it sees a new `version`, it triggers the matching choice in the active dialogue.
+
+For VRChat Build & Test, external URLs may require enabling untrusted URLs in VRChat settings when using a localhost endpoint.
 
 ## Sync To Another Project
 
@@ -64,5 +122,6 @@ It contains:
 - `Choice_0_Button`
 - `Choice_1_Button`
 - `Choice_2_Button`
+- `VoiceChoiceReceiver` component on the root object
 
 The choice buttons are physical world-space objects with `BoxCollider` and Udon `Interact()`. They are not ordinary Unity UI buttons.

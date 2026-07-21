@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using VRC.SDKBase;
 using VRC.Udon;
 
 public static class AddProximityDialogToScene
@@ -18,8 +19,11 @@ public static class AddProximityDialogToScene
     private const string DialogAssetPath = ModuleRoot + "/Runtime/ProximityDialogTrigger.asset";
     private const string ChoiceButtonScriptPath = ModuleRoot + "/Runtime/ProximityDialogChoiceButton.cs";
     private const string ChoiceButtonAssetPath = ModuleRoot + "/Runtime/ProximityDialogChoiceButton.asset";
+    private const string VoiceReceiverScriptPath = ModuleRoot + "/Runtime/VoiceChoiceReceiver.cs";
+    private const string VoiceReceiverAssetPath = ModuleRoot + "/Runtime/VoiceChoiceReceiver.asset";
     private const string JapaneseFontPath = ModuleRoot + "/Fonts/NotoSansCJKjp-Regular.otf";
     private const string JapaneseTMPFontPath = ModuleRoot + "/Fonts/NotoSansCJKjp-Regular SDF.asset";
+    private const string DefaultVoicePollUrl = "http://127.0.0.1:8765/session/default/latest";
 
     [InitializeOnLoadMethod]
     private static void AutoRunIfRequested()
@@ -84,9 +88,11 @@ public static class AddProximityDialogToScene
 
         EnsureProgramAsset(DialogScriptPath, DialogAssetPath);
         EnsureProgramAsset(ChoiceButtonScriptPath, ChoiceButtonAssetPath);
+        EnsureProgramAsset(VoiceReceiverScriptPath, VoiceReceiverAssetPath);
         var japaneseFont = EnsureJapaneseFontAsset();
 
         var dialog = RecreateDialogComponent(root);
+        var voiceReceiver = RecreateVoiceReceiverComponent(root);
 
         var marker = BuildMarker(root.transform);
         marker.transform.localPosition = new Vector3(0f, 0.9f, 0f);
@@ -133,8 +139,15 @@ public static class AddProximityDialogToScene
         dialog.dialogTransform = canvasObject.transform;
         dialog.triggerDistance = 3.25f;
 
+        voiceReceiver.dialog = dialog;
+        voiceReceiver.statusText = statusText;
+        voiceReceiver.pollUrl = new VRCUrl(DefaultVoicePollUrl);
+        voiceReceiver.pollIntervalSeconds = 1f;
+        voiceReceiver.enablePolling = true;
+
         EditorUtility.SetDirty(root);
         EditorUtility.SetDirty(dialog);
+        EditorUtility.SetDirty(voiceReceiver);
         UdonSharpProgramAsset.CompileAllCsPrograms(true);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveOpenScenes();
@@ -383,6 +396,31 @@ public static class AddProximityDialogToScene
         }
 
         return target.AddUdonSharpComponent<ProximityDialogChoiceButton>();
+    }
+
+    private static VoiceChoiceReceiver RecreateVoiceReceiverComponent(GameObject root)
+    {
+        var existing = root.GetComponent<VoiceChoiceReceiver>();
+        if (existing != null)
+        {
+            var backingBehaviour = UdonSharpEditorUtility.GetBackingUdonBehaviour(existing);
+            Object.DestroyImmediate(existing);
+
+            if (backingBehaviour != null)
+            {
+                Object.DestroyImmediate(backingBehaviour);
+            }
+        }
+
+        foreach (var orphan in root.GetComponents<UdonBehaviour>())
+        {
+            if (orphan.programSource == null || orphan.programSource.name == "VoiceChoiceReceiver")
+            {
+                Object.DestroyImmediate(orphan);
+            }
+        }
+
+        return root.AddUdonSharpComponent<VoiceChoiceReceiver>();
     }
 
     private static void SetInteractionPrompt(UdonBehaviour behaviour, string text, float proximity)
