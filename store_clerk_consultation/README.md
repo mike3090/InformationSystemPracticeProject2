@@ -38,7 +38,7 @@ NPC_DialogTrigger_Demo
 
 The interaction uses world-space reply buttons with `BoxCollider` and VRChat `Interact()`, not ordinary Unity UI buttons.
 
-## Voice Choice MVP
+## Local Whisper Voice Choice
 
 This module also includes an optional voice-control bridge:
 
@@ -47,27 +47,28 @@ Assets/ConvenienceStoreDialog/Runtime/VoiceChoiceReceiver.cs
 Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
 ```
 
-The external service serves a browser microphone page. In Chrome or Edge, it can listen for Japanese speech, submit final transcripts, match them to choice index `0`, `1`, or `2`, and expose the latest result for VRChat polling:
+The external service captures a Windows microphone with `soundcard`, segments speech by RMS/silence, transcribes Japanese locally with `faster-whisper`, matches the transcript to choice index `0`, `1`, or `2`, and exposes the latest result for VRChat polling:
 
 ```text
 http://127.0.0.1:8765/session/default/latest
 ```
 
-Start the test service from the Unity project root:
+Install the local environment once, then start the service:
 
 ```powershell
-python Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/setup_whisper.ps1
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/run_whisper.ps1
 ```
 
-Then open:
+List microphone names when device selection needs adjustment:
 
-```text
-http://127.0.0.1:8765/
+```powershell
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/run_whisper.ps1 --list-devices
 ```
 
-Click `Start Japanese voice recognition`, allow microphone access, and speak phrases such as `唐揚げ弁当を探しています`, `コーヒーはありますか`, or `ATMはどこですか`.
+The included launcher defaults to `MIXLINE Record`, matching the validated `interaction` configuration on this machine. Override `STORE_CLERK_CAPTURE_MICROPHONE` with any unique part of another Windows device name when needed.
 
-Manual transcript submission remains available on the same page as a fallback. `VoiceChoiceReceiver` polls the result and triggers the same dialogue choice that a click would trigger.
+The page at `http://127.0.0.1:8765/` shows the latest Whisper result and retains manual transcript submission as a fallback. `VoiceChoiceReceiver` polls the result and triggers the same dialogue choice that a click would trigger.
 
 ## Requirements
 
@@ -75,3 +76,5 @@ Manual transcript submission remains available on the same page as a fallback. `
 - VRChat SDK Worlds
 - UdonSharp
 - TextMeshPro
+- Python 3.11
+- A Windows recording microphone

@@ -20,8 +20,8 @@ VRChat/UdonSharp convenience-store dialogue prototype.
   - Polls an external voice-choice service.
   - Converts service results into the same `SelectChoice0/1/2` calls used by clickable buttons.
 - `ExternalVoiceService/voice_choice_server.py`
-  - Minimal local HTTP service for the MVP.
-  - Serves a browser microphone page using Web Speech API for Japanese ASR.
+  - Local microphone and HTTP service for the MVP.
+  - Uses `soundcard` and `faster-whisper` for Japanese ASR.
   - Also accepts manual recognized text and matches it to choice index `0`, `1`, or `2`.
 - `Fonts/`
   - Noto Sans CJK JP TMP font assets used for Japanese text display.
@@ -38,7 +38,7 @@ In Unity:
 
 The installer is idempotent: running it again updates the existing object instead of creating a second one.
 
-## Voice Choice MVP
+## Local Whisper Voice Choice
 
 The generated NPC also includes `VoiceChoiceReceiver`.
 
@@ -48,31 +48,36 @@ Default polling URL:
 http://127.0.0.1:8765/session/default/latest
 ```
 
-Start the local test service:
+Install the local Python environment once:
 
 ```powershell
-py -3 Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/setup_whisper.ps1
 ```
 
-If `py` is unavailable, try:
+Start microphone recognition and the Unity polling endpoint:
 
 ```powershell
-python Assets/ConvenienceStoreDialog/ExternalVoiceService/voice_choice_server.py
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/run_whisper.ps1
 ```
 
-Open the voice page in Chrome or Edge:
+The launcher defaults to `MIXLINE Record`, matching the validated `interaction` configuration on this machine. To inspect or select another microphone:
 
-```text
-http://127.0.0.1:8765/
+```powershell
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/run_whisper.ps1 --list-devices
+$env:STORE_CLERK_CAPTURE_MICROPHONE = "part of the device name"
+& Assets/ConvenienceStoreDialog/ExternalVoiceService/run_whisper.ps1
 ```
 
-Click:
+Whisper defaults to `base`, Japanese, and `cpu/int8`. These can be overridden before launch:
 
-```text
-Start Japanese voice recognition
+```powershell
+$env:STORE_CLERK_WHISPER_MODEL = "base"
+$env:STORE_CLERK_WHISPER_DEVICE = "cpu"
+$env:STORE_CLERK_WHISPER_COMPUTE_TYPE = "int8"
+$env:STORE_CLERK_WHISPER_LANGUAGE = "ja"
 ```
 
-Then speak one of the current reply phrases, for example:
+Speak one of the current reply phrases, for example:
 
 ```text
 唐揚げ弁当を探しています
@@ -80,7 +85,7 @@ Then speak one of the current reply phrases, for example:
 ATMはどこですか
 ```
 
-The page submits final Japanese transcripts to the local service automatically.
+The Python process prints `[AUDIO]`, `[STT]`, `[MATCH]`, and full error details. Open `http://127.0.0.1:8765/` to see the latest result.
 
 Manual text submission is still available on the same page as a fallback.
 

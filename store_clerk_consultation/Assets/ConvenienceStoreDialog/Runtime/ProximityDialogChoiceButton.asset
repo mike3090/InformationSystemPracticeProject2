@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: ProximityDialogChoiceButton
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: 1e23a22369491e84e87627a71065ae8e,
+  serializedUdonProgramAsset: {fileID: 11400000, guid: 83cdf697f2e06cd49bc44f2691451d15,
     type: 2}
   udonAssembly: 
   assemblyError: 
